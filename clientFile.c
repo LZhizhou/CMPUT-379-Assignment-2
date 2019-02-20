@@ -17,7 +17,8 @@
 #define NUM_CLIENT 1
 void *connection_handler(void *socket_desc);
 
-void print_whole_string(char *string, int size){
+void read_res(char *string, int size){
+    printf("received: ");
     for(int i = 0; i < size; i++)
     {
         //printf("%d",string[i]);
@@ -58,12 +59,12 @@ int main(int argc, char** argv)
         fgets(sbuff, MAX_SIZE , stdin);
         send(sock_desc,sbuff,strlen(sbuff),0);
 
-        if(recv(sock_desc,rbuff,MAX_SIZE,0)==0)
+        while (recv(sock_desc,rbuff,MAX_SIZE,0)==0)
             printf("Error");
         
-		print_whole_string(rbuff,sizeof(rbuff));
+		read_res(rbuff,sizeof(rbuff));
 
-        sleep(2);
+        //sleep(2);
         memset(rbuff,0,sizeof(rbuff));
     }
     close(sock_desc);

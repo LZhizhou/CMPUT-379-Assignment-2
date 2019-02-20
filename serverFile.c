@@ -11,13 +11,14 @@
 #include <sys/stat.h>
 #include <sys/sendfile.h>
 
-char client_message[2000];
 char server_message[2000];
 char buffer[1024];
 char *directory;
+int message_count = 0x00;
 
 int total_strlen(char *string, int size)
 {
+	// get total length of a string not stop at '\0'
 	int count = size;
 	for (int i = 0; i < size - 1; i++)
 	{
@@ -32,6 +33,7 @@ int total_strlen(char *string, int size)
 
 void print_whole_string(char *string, int size)
 {
+	// print all context in string not stop at '\0'
 	for (int i = 0; i < size; i++)
 	{
 		printf("%c", string[i]);
@@ -39,8 +41,9 @@ void print_whole_string(char *string, int size)
 	printf("\n");
 }
 
-void stradd(char *a, char *b, int size_a,int size_b)
+void stradd(char *a, char *b, int size_a, int size_b)
 {
+	// array concatenation
 	if (size_a == 0)
 	{
 		strcat(a, b);
@@ -71,7 +74,8 @@ int cfileexists(const char *filename)
 	return 0;
 }
 void list(int connection_fd)
-{
+{	//send all files to connection_fd
+	
 	char buf[1024] = {0};
 
 	DIR *dir;
@@ -81,19 +85,27 @@ void list(int connection_fd)
 	int file_count = 0;
 	while ((item = readdir(dir)) != NULL)
 	{
-
 		if ((strcmp(item->d_name, ".") == 0) || (strcmp(item->d_name, "..") == 0))
 			continue;
 		//printf("this file name is %s\n", item->d_name);
-		stradd(buf, item->d_name, total_strlen(buf, sizeof(buf)),strlen(item->d_name));
+		stradd(buf, item->d_name, total_strlen(buf, sizeof(buf)), strlen(item->d_name));
+		// get names of all files
 		file_count++;
 	}
 	char res[1024] = {0};
-	sprintf(res, "%d", file_count);
-	stradd(res, buf, strlen(res),total_strlen(buf, sizeof(buf)));
-	send(connection_fd, res, 1024, 0);
-	print_whole_string(buf, sizeof(buf));
-	close(connection_fd);
+	// res is going to be the string send to connection_fd
+	sprintf(res, "0x%02x", message_count);
+	// add hex prefix
+	char file_count_string[10];
+	sprintf(file_count_string, "%d", file_count);
+	stradd(res, file_count_string, strlen(res), strlen(file_count_string));
+	// add number of files
+	stradd(res, buf, total_strlen(res, sizeof(res)), total_strlen(buf, sizeof(buf)));
+	// add names of all the files
+	send(connection_fd, res, sizeof(res), 0);
+	// prefix hex ++
+	message_count++;
+	print_whole_string(res, sizeof(res));
 }
 void download(int connection_fd, char *client_message)
 {
@@ -123,13 +135,12 @@ void *socketThread(void *arg)
 	int newSocket = *((int *)arg);
 	// Send message to the client socket
 
-	char str[80];
-	if (recv(newSocket, client_message, 2000, 0) == 0)
-		printf("Error");
-	else
+	char str[80],client_message[2000] ;
+	while (recv(newSocket, client_message, 2000, 0) != 0)
 	{
 		char flag;
 		sscanf(client_message, " %c", &flag);
+		// get first char of command
 		switch (client_message[0])
 		{
 		case 'l':
@@ -147,9 +158,8 @@ void *socketThread(void *arg)
 		default:
 			break;
 		}
+		memset(client_message,0,sizeof(client_message));
 	}
-
-	send(newSocket, buffer, 13, 0);
 	printf("Exit socketThread \n");
 	close(newSocket);
 	pthread_exit(NULL);
