@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 		if (newSocket >= 0)
 		{
 			printf("%d", i);
-			printf("I am making sockets");
+			//printf("I am making sockets");
 			if (pthread_create(&tid[i], NULL, socketThread, &newSocket) != 0)
 				printf("Failed to create thread\n");
 			i++;
@@ -222,6 +222,7 @@ int main(int argc, char **argv)
 			}
 			i = 0;
 		}
+		printf("finished\n");
 	}
 	return 0;
 }
