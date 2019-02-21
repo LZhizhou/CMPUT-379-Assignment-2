@@ -10,52 +10,27 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
+#include <malloc.h>
+
 
 char server_message[2000];
-char buffer[1024];
+
 char *directory;
-int message_count = 0x00;
 
-int total_strlen(char *string, int size)
-{
-	// get total length of a string not stop at '\0'
-	int count = size;
-	for (int i = 0; i < size - 1; i++)
-	{
-		if (string[i] == '\0' && string[i + 1] == '\0')
-		{
-			count = i;
-			break;
-		}
-	}
-	return count;
+unsigned char int2one_byte(int x){
+	unsigned char res;
+	res = x&0xFF;
+	return res;
+}
+void int2two_byte(unsigned char res[2], int x){
+	res[0] = (x&0xFF00)>>8;
+	res[1] = x&0xFF;
+	//printf("x is %d, two byte is %02x %02x",x, res[0],res[1]);
 }
 
-void print_whole_string(char *string, int size)
-{
-	// print all context in string not stop at '\0'
-	for (int i = 0; i < size; i++)
-	{
-		printf("%c", string[i]);
-	}
-	printf("\n");
-}
-
-void stradd(char *a, char *b, int size_a, int size_b)
-{
-	// array concatenation
-	if (size_a == 0)
-	{
-		strcat(a, b);
-		return;
-	}
-	for (int i = 0; i < size_b; i++)
-	{
-		a[size_a + i + 1] = b[i];
-	}
-}
 void prror(char *error_message)
 {
+	//printer error and exit
 	fprintf(stderr, "%s", error_message);
 	exit(1);
 }
@@ -73,9 +48,9 @@ int cfileexists(const char *filename)
 	}
 	return 0;
 }
-void list(int connection_fd)
-{	//send all files to connection_fd
-	
+void list(int connection_fd, int *message_count)
+{ //send all files to connection_fd
+
 	char buf[1024] = {0};
 
 	DIR *dir;
@@ -83,35 +58,76 @@ void list(int connection_fd)
 
 	dir = opendir(directory);
 	int file_count = 0;
+	char **filenames= NULL;
+
 	while ((item = readdir(dir)) != NULL)
 	{
 		if ((strcmp(item->d_name, ".") == 0) || (strcmp(item->d_name, "..") == 0))
 			continue;
-		//printf("this file name is %s\n", item->d_name);
-		stradd(buf, item->d_name, total_strlen(buf, sizeof(buf)), strlen(item->d_name));
 		// get names of all files
+		
+		if (file_count == 0){
+			filenames = (char**)malloc((file_count+1)*sizeof(char*));
+			filenames[file_count] = (char*)malloc(strlen(item->d_name)+1);
+			
+		}
+		else
+		{
+			filenames = (char**)realloc(filenames,(file_count+1)*sizeof(char*));
+			filenames[file_count] = (char*)malloc(strlen(item->d_name)+1);
+		}
+		strcpy(filenames[file_count],item->d_name);
 		file_count++;
 	}
-	char res[1024] = {0};
-	// res is going to be the string send to connection_fd
-	sprintf(res, "0x%02x", message_count);
-	// add hex prefix
-	char file_count_string[10];
-	sprintf(file_count_string, "%d", file_count);
-	stradd(res, file_count_string, strlen(res), strlen(file_count_string));
-	// add number of files
-	stradd(res, buf, total_strlen(res, sizeof(res)), total_strlen(buf, sizeof(buf)));
-	// add names of all the files
-	send(connection_fd, res, sizeof(res), 0);
-	// prefix hex ++
-	message_count++;
-	print_whole_string(res, sizeof(res));
+	
+	unsigned char message_count_byte;
+	message_count_byte = int2one_byte(*message_count);
+	send(connection_fd, &message_count_byte, sizeof(unsigned char), 0);
+	printf("%d ",*message_count);
+	// send perfix one byte
+	unsigned char file_count_2_byte[2];
+	int2two_byte(file_count_2_byte,file_count);
+	send(connection_fd, file_count_2_byte, sizeof(unsigned char)*2, 0);
+	printf("%d ",file_count);
+
+	for (int i = 0; i < file_count; i++){
+		send(connection_fd, filenames[i], sizeof(filenames[i]), 0);
+		printf("%s ",filenames[i]);
+		free(filenames[i]);
+	}
+	if (file_count!=0)
+		free(filenames);
+	*message_count++;
 }
-void download(int connection_fd, char *client_message)
+void download(int connection_fd, char *filename)
 {
-	char filename[20], temp;
-	sscanf(client_message, " %c %s", &temp, filename);
-	struct stat stat_buf;
+	char buffer[1024];
+	FILE *fp = fopen(filename, "r");
+
+	if (NULL == fp)
+	{
+		prror("File Not Found\n");
+	}
+	else
+	{
+		memset(buffer,0, sizeof(buffer));
+		int length = 0;
+
+		while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
+		{
+			printf("length = %d\n", length);
+			if (send(connection_fd, buffer, length, 0) < 0)
+			{
+				printf("Send File Failed.\n");
+				break;
+			}
+			memset(buffer,0, sizeof(buffer));
+		}
+		fclose(fp);
+		sleep(1);
+		printf("File Transfer Successful!\n");
+	}
+/* 	struct stat stat_buf;
 	fgets(server_message, 2000, stdin);
 	send(connection_fd, server_message, strlen(server_message), 0);
 	if (cfileexists(filename) == 1)
@@ -125,19 +141,25 @@ void download(int connection_fd, char *client_message)
 	else
 	{
 		printf("we do not have it\n");
-	}
+	} */
 }
 
 void *socketThread(void *arg)
 {
 
+	int message_count = 0x00;
 	int read_fd;
 	int newSocket = *((int *)arg);
 	// Send message to the client socket
 
-	char str[80],client_message[2000] ;
-	while (recv(newSocket, client_message, 2000, 0) != 0)
+	char str[80], client_message[2000];
+	char filename[20], temp;
+	while (1)
 	{
+		// if lose connect with client
+		if (recv(newSocket, client_message, 2000, 0) == 0)
+			goto close_socket;
+
 		char flag;
 		sscanf(client_message, " %c", &flag);
 		// get first char of command
@@ -145,21 +167,25 @@ void *socketThread(void *arg)
 		{
 		case 'l':
 			// if command is l, it means list all files
-			list(newSocket);
+			list(newSocket, &message_count);
 			break;
 		case 'u':
 			break;
 		case 'd':
 			// d command, send
-			download(newSocket, client_message);
+			
+			sscanf(client_message, " %c %s", &temp, filename);
+			download(newSocket, filename);
 			break;
 		case 'q':
-			break;
+			// q command, quit
+			goto close_socket;
 		default:
 			break;
 		}
-		memset(client_message,0,sizeof(client_message));
+		memset(client_message, 0, sizeof(client_message));
 	}
+close_socket:
 	printf("Exit socketThread \n");
 	close(newSocket);
 	pthread_exit(NULL);
@@ -222,7 +248,7 @@ int main(int argc, char **argv)
 		}
 		else if (newSocket < 0)
 			printf("Failed to connect");
-
+		// copy from lab code
 		if (i >= 50)
 		{
 			i = 0;
