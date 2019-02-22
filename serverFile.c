@@ -41,9 +41,11 @@ unsigned char int2one_byte(int x)
 }
 void int2two_byte(unsigned char res[2], int x)
 {
-	res[0] = (x & 0xFF00) >> 8;
 	res[1] = x & 0xFF;
-	//printf("x is %d, two byte is %02x %02x", x, res[0], res[1]);
+	if(x>0xFF){
+		res[0] = (x >> 8)&0xFF;
+	}
+	printf("x is %d, two byte is %02x %02x", x, res[0], res[1]);
 }
 
 void prror(char *error_message)
@@ -93,10 +95,11 @@ void list(int connection_fd, int *message_count)
 	unsigned char message_count_byte;
 	message_count_byte = int2one_byte(*message_count);
 	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
-	printf("0x%02x|\n", message_count_byte);
-
-	unsigned char file_count_2_byte[2];
+	printf("0x%02x\n", message_count_byte);
+	
+	unsigned char file_count_2_byte[2] = {0};
 	int2two_byte(file_count_2_byte, file_count);
+	printf("|");
 	send(connection_fd, file_count_2_byte, sizeof(file_count_2_byte), 0);
 	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]);
 
