@@ -12,20 +12,38 @@
 #include <sys/sendfile.h>
 #include <malloc.h>
 
-
 char server_message[2000];
 
 char *directory;
 
-unsigned char int2one_byte(int x){
+
+void append_string(char *str1, char *str2, int index)
+{
+	for (int i = 0; i < strlen(str2); i++)
+	{	
+		if (index == 0){
+			strcpy(str1,str2);
+		}
+		else
+		{
+			memcpy(index+str1,str2,sizeof(str2));
+		}
+		
+		
+	}
+	//printf("str1 is %s, str2 is %s\n",str1,str2);
+}
+unsigned char int2one_byte(int x)
+{
 	unsigned char res;
-	res = x&0xFF;
+	res = x & 0xFF;
 	return res;
 }
-void int2two_byte(unsigned char res[2], int x){
-	res[0] = (x&0xFF00)>>8;
-	res[1] = x&0xFF;
-	//printf("x is %d, two byte is %02x %02x",x, res[0],res[1]);
+void int2two_byte(unsigned char res[2], int x)
+{
+	res[0] = (x & 0xFF00) >> 8;
+	res[1] = x & 0xFF;
+	//printf("x is %d, two byte is %02x %02x", x, res[0], res[1]);
 }
 
 void prror(char *error_message)
@@ -57,46 +75,40 @@ void list(int connection_fd, int *message_count)
 	struct dirent *item;
 
 	dir = opendir(directory);
-	int file_count = 0;
-	char **filenames= NULL;
+	int file_count = 0, name_len = 0;
+	char filenames[200] = {0};
 
 	while ((item = readdir(dir)) != NULL)
 	{
 		if ((strcmp(item->d_name, ".") == 0) || (strcmp(item->d_name, "..") == 0))
 			continue;
 		// get names of all files
-		
-		if (file_count == 0){
-			filenames = (char**)malloc((file_count+1)*sizeof(char*));
-			filenames[file_count] = (char*)malloc(strlen(item->d_name)+1);
-			
-		}
-		else
-		{
-			filenames = (char**)realloc(filenames,(file_count+1)*sizeof(char*));
-			filenames[file_count] = (char*)malloc(strlen(item->d_name)+1);
-		}
-		strcpy(filenames[file_count],item->d_name);
+
+		append_string(filenames, item->d_name, name_len);
+		name_len += strlen(item->d_name)+1;
+		//filenames[file_count][strlen(item->d_name)+1] = '\0';
 		file_count++;
 	}
-	
+	//printf("malloc done\n");
 	unsigned char message_count_byte;
 	message_count_byte = int2one_byte(*message_count);
-	send(connection_fd, &message_count_byte, sizeof(unsigned char), 0);
-	printf("%d ",*message_count);
-	// send perfix one byte
-	unsigned char file_count_2_byte[2];
-	int2two_byte(file_count_2_byte,file_count);
-	send(connection_fd, file_count_2_byte, sizeof(unsigned char)*2, 0);
-	printf("%d ",file_count);
+	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
+	printf("0x%02x|\n", message_count_byte);
 
-	for (int i = 0; i < file_count; i++){
-		send(connection_fd, filenames[i], sizeof(filenames[i]), 0);
-		printf("%s ",filenames[i]);
-		free(filenames[i]);
+	unsigned char file_count_2_byte[2];
+	int2two_byte(file_count_2_byte, file_count);
+	send(connection_fd, file_count_2_byte, sizeof(file_count_2_byte), 0);
+	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]);
+
+
+	send(connection_fd, filenames, sizeof(filenames), 0);
+	for(int i = 0; i < sizeof(filenames); i++)
+	{
+		printf("%c",filenames[i]);
 	}
-	if (file_count!=0)
-		free(filenames);
+
+	
+
 	*message_count++;
 }
 void download(int connection_fd, char *filename)
@@ -110,7 +122,7 @@ void download(int connection_fd, char *filename)
 	}
 	else
 	{
-		memset(buffer,0, sizeof(buffer));
+		memset(buffer, 0, sizeof(buffer));
 		int length = 0;
 
 		while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
@@ -121,13 +133,13 @@ void download(int connection_fd, char *filename)
 				printf("Send File Failed.\n");
 				break;
 			}
-			memset(buffer,0, sizeof(buffer));
+			memset(buffer, 0, sizeof(buffer));
 		}
 		fclose(fp);
 		sleep(1);
 		printf("File Transfer Successful!\n");
 	}
-/* 	struct stat stat_buf;
+	/* 	struct stat stat_buf;
 	fgets(server_message, 2000, stdin);
 	send(connection_fd, server_message, strlen(server_message), 0);
 	if (cfileexists(filename) == 1)
@@ -157,9 +169,9 @@ void *socketThread(void *arg)
 	while (1)
 	{
 		// if lose connect with client
-		if (recv(newSocket, client_message, 2000, 0) == 0)
+		if (recv(newSocket, client_message, sizeof(client_message), 0) == 0)
 			goto close_socket;
-
+		//printf("received %s\n",client_message);
 		char flag;
 		sscanf(client_message, " %c", &flag);
 		// get first char of command
@@ -173,7 +185,7 @@ void *socketThread(void *arg)
 			break;
 		case 'd':
 			// d command, send
-			
+
 			sscanf(client_message, " %c %s", &temp, filename);
 			download(newSocket, filename);
 			break;
