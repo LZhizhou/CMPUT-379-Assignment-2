@@ -17,6 +17,15 @@
 #define NUM_CLIENT 1
 
 void *connection_handler(void *socket_desc);
+union two_byte
+{
+	int num;
+	unsigned char bytes[2];
+};
+union one_byte{
+	int num;
+	unsigned char byte;
+};
 
 int read_1_byte(unsigned char prefix)
 {
@@ -24,10 +33,15 @@ int read_1_byte(unsigned char prefix)
 }
 int read_2_byte_char(unsigned char *arr)
 {
-    int i = *(signed char *)(&arr[0]);
+/*     int i = *(signed char *)(&arr[0]);
     i *= 1 << sizeof(char);
     i = i | arr[1];
-    return i;
+    return i; */
+    union two_byte b;
+    b.bytes[0] = arr[0];
+    b.bytes[1] = arr[1];
+    return b.num;
+
 }
 
 void prror(char *error_message)
@@ -37,51 +51,34 @@ void prror(char *error_message)
 }
 void request_list(int server_fd)
 {
-    int count = 0, file_count = 0, file_total = 1;
-    char buffer[200], filename[30];
-    unsigned char prefix, file_count_2_byte[2];
-    while (file_count < file_total && recv(server_fd, buffer, sizeof(buffer), 0) != 0)
+    int count = 0, file_count = 0, file_total = 0;
+    unsigned char buffer[200];
+    while (recv(server_fd, buffer, sizeof(buffer), 0) != 0)
     {
 
-        switch (count)
-        {
-        case 0:
-            goto read_prefix;
-            break;
-        case 1:
-            goto read_N1;
-            break;
-        default:
-            goto read_filenams;
+        if(count ==0){
+            printf("0x%02x|", read_1_byte(buffer[0]));
         }
-    clear_buffer:
+        else if (count ==1){
+            
+            file_total=read_2_byte_char(buffer);
+            printf("%d|", file_total);
+        }
+        else{
+            char filenames[20] = {0};
+            memcpy(filenames, buffer, 20);
+            printf("%s ", filenames);
+            file_count++;
+            if (file_total == file_count){
+                printf("\n");
+                return;
+            }
+        }
         count++;
         memset(buffer, 0, sizeof(buffer));
     }
     return;
 
-read_prefix:
-
-    memcpy(&prefix, buffer, 1);
-    printf("0x%02x|", read_1_byte(prefix));
-    goto clear_buffer;
-read_N1:
-    memcpy(file_count_2_byte, buffer, 2);
-    file_total=read_2_byte_char(file_count_2_byte);
-    printf("%d|", file_total);
-    goto clear_buffer;
-
-read_filenams:
-
-    //printf("received:");
-	for(int i = 0; i < sizeof(buffer); i++)
-	{
-		printf("%c",buffer[i]);
-	}
-	printf("\n");
-    //printf("count is: %d, file_count is: %d, file_total is: %d\n", count, file_count, file_total);
-
-    return;
 }
 void download(int server_fd, char *filename)
 {

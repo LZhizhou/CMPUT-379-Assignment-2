@@ -16,6 +16,15 @@ char server_message[2000];
 
 char *directory;
 
+union two_byte
+{
+	int num;
+	unsigned char bytes[2];
+};
+union one_byte{
+	int num;
+	unsigned char byte;
+};
 
 void append_string(char *str1, char *str2, int index)
 {
@@ -33,7 +42,7 @@ void append_string(char *str1, char *str2, int index)
 	}
 	//printf("str1 is %s, str2 is %s\n",str1,str2);
 }
-unsigned char int2one_byte(int x)
+/* unsigned char int2one_byte(int x)
 {
 	unsigned char res;
 	res = x & 0xFF;
@@ -46,7 +55,7 @@ void int2two_byte(unsigned char res[2], int x)
 		res[0] = (x >> 8)&0xFF;
 	}
 	printf("x is %d, two byte is %02x %02x", x, res[0], res[1]);
-}
+} */
 
 void prror(char *error_message)
 {
@@ -77,8 +86,11 @@ void list(int connection_fd, int *message_count)
 	struct dirent *item;
 
 	dir = opendir(directory);
-	int file_count = 0, name_len = 0;
+	int name_len = 0;
 	char filenames[200] = {0};
+	union one_byte prefix;
+	union two_byte file_count;
+	file_count.num = 0;
 
 	while ((item = readdir(dir)) != NULL)
 	{
@@ -89,19 +101,27 @@ void list(int connection_fd, int *message_count)
 		append_string(filenames, item->d_name, name_len);
 		name_len += strlen(item->d_name)+1;
 		//filenames[file_count][strlen(item->d_name)+1] = '\0';
-		file_count++;
+		file_count.num++;
 	}
 	//printf("malloc done\n");
-	unsigned char message_count_byte;
+	
+	prefix.num = *message_count;
+	send(connection_fd, &(prefix.byte), 1, 0);
+	printf("0x%02x\n", prefix.byte); 
+
+/* 	unsigned char message_count_byte;
 	message_count_byte = int2one_byte(*message_count);
 	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
-	printf("0x%02x\n", message_count_byte);
+	printf("0x%02x\n", message_count_byte); */
 	
-	unsigned char file_count_2_byte[2] = {0};
+	printf("|");
+	send(connection_fd, file_count.bytes, 2, 0);
+	printf("%x%x|", file_count.bytes[1], file_count.bytes[0]);
+/* 	unsigned char file_count_2_byte[2] = {0};
 	int2two_byte(file_count_2_byte, file_count);
 	printf("|");
 	send(connection_fd, file_count_2_byte, sizeof(file_count_2_byte), 0);
-	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]);
+	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]); */
 
 
 	send(connection_fd, filenames, sizeof(filenames), 0);
@@ -110,9 +130,7 @@ void list(int connection_fd, int *message_count)
 		printf("%c",filenames[i]);
 	}
 
-	
 
-	*message_count++;
 }
 void download(int connection_fd, char *filename)
 {
