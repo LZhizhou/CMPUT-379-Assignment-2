@@ -87,7 +87,7 @@ void list(int connection_fd, int *message_count)
 
 	dir = opendir(directory);
 	int name_len = 0;
-	char filenames[200] = {0};
+	char filenames[20][50] = {0};
 	union one_byte prefix;
 	union two_byte file_count;
 	file_count.num = 0;
@@ -97,9 +97,9 @@ void list(int connection_fd, int *message_count)
 		if ((strcmp(item->d_name, ".") == 0) || (strcmp(item->d_name, "..") == 0))
 			continue;
 		// get names of all files
-
-		append_string(filenames, item->d_name, name_len);
-		name_len += strlen(item->d_name)+1;
+		strcpy(filenames[file_count.num], item->d_name);
+		
+		//name_len += strlen(item->d_name)+1;
 		//filenames[file_count][strlen(item->d_name)+1] = '\0';
 		file_count.num++;
 	}
@@ -113,7 +113,7 @@ void list(int connection_fd, int *message_count)
 	message_count_byte = int2one_byte(*message_count);
 	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
 	printf("0x%02x\n", message_count_byte); */
-	
+//sleep(1);
 	printf("|");
 	send(connection_fd, file_count.bytes, 2, 0);
 	printf("%x%x|", file_count.bytes[1], file_count.bytes[0]);
@@ -123,13 +123,16 @@ void list(int connection_fd, int *message_count)
 	send(connection_fd, file_count_2_byte, sizeof(file_count_2_byte), 0);
 	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]); */
 
-
-	send(connection_fd, filenames, sizeof(filenames), 0);
-	for(int i = 0; i < sizeof(filenames); i++)
+	
+	
+	for(int i = 0; i < file_count.num; i++)
 	{
-		printf("%c",filenames[i]);
+		sleep(1);
+		printf("%s\n",filenames[i]);
+		send(connection_fd, filenames[i], sizeof(filenames[i]), 0);
+		
 	}
-
+	printf("\n");
 
 }
 void download(int connection_fd, char *filename)

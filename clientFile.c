@@ -36,10 +36,14 @@ int read_2_byte_char(unsigned char *arr)
 /*     int i = *(signed char *)(&arr[0]);
     i *= 1 << sizeof(char);
     i = i | arr[1];
-    return i; */
+    return i;  */
     union two_byte b;
+    memset(&b, 0, sizeof(b));
     b.bytes[0] = arr[0];
     b.bytes[1] = arr[1];
+    printf("arr: %x%x|\n", arr[1],arr[0]);
+    printf("union: %x%x, num is %d\n", b.bytes[1], b.bytes[0],b.num);
+
     return b.num;
 
 }
@@ -51,31 +55,37 @@ void prror(char *error_message)
 }
 void request_list(int server_fd)
 {
-    int count = 0, file_count = 0, file_total = 0;
+    int count = 0, file_count = 0, file_total = 3;
     unsigned char buffer[200];
-    while (recv(server_fd, buffer, sizeof(buffer), 0) != 0)
+    while ( file_count<file_total)
     {
-
+        
         if(count ==0){
-            printf("0x%02x|", read_1_byte(buffer[0]));
+            recv(server_fd, buffer, 1, 0);
+            printf("0x%02x|\n", read_1_byte(buffer[0]));
         }
         else if (count ==1){
+            recv(server_fd, buffer, 2, 0);
             
             file_total=read_2_byte_char(buffer);
-            printf("%d|", file_total);
+            //printf("%d\n",file_total);
+            //printf("%x%x|\n", buffer[1],buffer[0]);
+            
         }
         else{
+            recv(server_fd, buffer, sizeof(buffer), 0);
             char filenames[20] = {0};
-            memcpy(filenames, buffer, 20);
-            printf("%s ", filenames);
+            
+            printf("%s\n", buffer);
             file_count++;
-            if (file_total == file_count){
-                printf("\n");
-                return;
-            }
         }
         count++;
+        //fflush(stdout);
+        //printf("%s\n",buffer);
+        //sleep(1);
+        //printf("\n");
         memset(buffer, 0, sizeof(buffer));
+        
     }
     return;
 
@@ -132,9 +142,10 @@ int main(int argc, char **argv)
         {
         case 'l':
             // if command is l, it means list all files
-            send(sock_desc, sbuff, sizeof(sbuff), 0);
+            send(sock_desc, sbuff, strlen(sbuff)+1, 0);
             printf("send l\n");
             request_list(sock_desc);
+            printf("received\n");
             break;
         case 'u':
             break;
@@ -151,6 +162,7 @@ int main(int argc, char **argv)
         default:
             break;
         }
+        memset(sbuff, 0, sizeof(sbuff));
     }
     close(sock_desc);
     return 0;
