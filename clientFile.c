@@ -41,8 +41,8 @@ int read_2_byte_char(unsigned char *arr)
     memset(&b, 0, sizeof(b));
     b.bytes[0] = arr[0];
     b.bytes[1] = arr[1];
-    printf("arr: %x%x|\n", arr[1],arr[0]);
-    printf("union: %x%x, num is %d\n", b.bytes[1], b.bytes[0],b.num);
+    //printf("arr: %x%x|\n", arr[1],arr[0]);
+    //printf("union: %x%x, num is %d\n", b.bytes[1], b.bytes[0],b.num);
 
     return b.num;
 
@@ -62,7 +62,7 @@ void request_list(int server_fd)
         
         if(count ==0){
             recv(server_fd, buffer, 1, 0);
-            printf("0x%02x|\n", read_1_byte(buffer[0]));
+            //printf("0x%02x|\n", read_1_byte(buffer[0]));
         }
         else if (count ==1){
             recv(server_fd, buffer, 2, 0);
@@ -143,9 +143,9 @@ int main(int argc, char **argv)
         case 'l':
             // if command is l, it means list all files
             send(sock_desc, sbuff, strlen(sbuff)+1, 0);
-            printf("send l\n");
+            //printf("send l\n");
             request_list(sock_desc);
-            printf("received\n");
+            //printf("received\n");
             break;
         case 'u':
             break;

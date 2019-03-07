@@ -107,16 +107,16 @@ void list(int connection_fd, int *message_count)
 	
 	prefix.num = *message_count;
 	send(connection_fd, &(prefix.byte), 1, 0);
-	printf("0x%02x\n", prefix.byte); 
+	//printf("0x%02x\n", prefix.byte); 
 
 /* 	unsigned char message_count_byte;
 	message_count_byte = int2one_byte(*message_count);
 	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
 	printf("0x%02x\n", message_count_byte); */
 //sleep(1);
-	printf("|");
+	//printf("|");
 	send(connection_fd, file_count.bytes, 2, 0);
-	printf("%x%x|", file_count.bytes[1], file_count.bytes[0]);
+	//printf("%x%x|", file_count.bytes[1], file_count.bytes[0]);
 /* 	unsigned char file_count_2_byte[2] = {0};
 	int2two_byte(file_count_2_byte, file_count);
 	printf("|");
@@ -128,11 +128,11 @@ void list(int connection_fd, int *message_count)
 	for(int i = 0; i < file_count.num; i++)
 	{
 		sleep(1);
-		printf("%s\n",filenames[i]);
+		//printf("%s\n",filenames[i]);
 		send(connection_fd, filenames[i], sizeof(filenames[i]), 0);
 		
 	}
-	printf("\n");
+	//printf("\n");
 
 }
 void download(int connection_fd, char *filename)
