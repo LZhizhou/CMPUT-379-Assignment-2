@@ -92,7 +92,7 @@ void download(int server_fd, char *filename)
 {
     char buffer[200];
 
-    FILE *fp = fopen(filename, "w");    
+    FILE *fp = fopen(filename, "w");
     if (fp < 0)
     {
         printf("File Can Not Open To Write\n");
@@ -119,6 +119,37 @@ void download(int server_fd, char *filename)
     printf("Receive File:\t%s From Server IP Successful!\n", filename);
     fclose(fp);
     printf("client_socket_fd = %d\n", server_fd);
+}
+void upload(int server_fd, char *filename)
+{
+
+    char buffer[200];
+
+    FILE *fp = fopen(filename, "r");
+
+    if (NULL == fp)
+    {
+        printf("File:%s Not Found\n", filename);
+    }
+    else
+    {
+        memset(buffer, 0, sizeof(buffer));
+        int length = 0;
+        while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
+        {
+            printf("length = %d\n", length);
+            if (send(server_fd, buffer, length, 0) < 0)
+            {
+                printf("Send File:%s Failed.\n", filename);
+                break;
+            }
+            memset(buffer, 0, sizeof(buffer));
+        }
+        sleep(1);
+        fclose(fp);
+        send(server_fd, "OK", 2, 0);
+        printf("File:%s Transfer Successful!\n", filename);
+    }
 }
 
 int main(int argc, char **argv)
@@ -149,6 +180,7 @@ int main(int argc, char **argv)
     while (1)
     {
         char command = 0;
+        char filename[20], temp;
         fgets(sbuff, MAX_SIZE, stdin);
         sscanf(sbuff, " %c", &command);
         switch (command)
@@ -161,22 +193,26 @@ int main(int argc, char **argv)
             //printf("received\n");
             break;
         case 'u':
+            send(sock_desc, sbuff, sizeof(sbuff), 0);
+            sscanf(sbuff, " %c %s", &temp, filename);
+            upload(sock_desc, filename);
             break;
         case 'd':
             // d command, send
             send(sock_desc, sbuff, sizeof(sbuff), 0);
-            char filename[20], temp;
             sscanf(sbuff, " %c %s", &temp, filename);
             download(sock_desc, filename);
             break;
         case 'q':
             // q command, quit
+            goto close;
 
         default:
             break;
         }
         memset(sbuff, 0, sizeof(sbuff));
     }
+close:
     close(sock_desc);
     return 0;
 }
