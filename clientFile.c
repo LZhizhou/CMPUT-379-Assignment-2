@@ -17,14 +17,13 @@
 #define NUM_CLIENT 1
 
 void *connection_handler(void *socket_desc);
-union two_byte
-{
-	int num;
-	unsigned char bytes[2];
+union two_byte {
+    int num;
+    unsigned char bytes[2];
 };
-union one_byte{
-	int num;
-	unsigned char byte;
+union one_byte {
+    int num;
+    unsigned char byte;
 };
 
 int read_1_byte(unsigned char prefix)
@@ -33,7 +32,7 @@ int read_1_byte(unsigned char prefix)
 }
 int read_2_byte_char(unsigned char *arr)
 {
-/*     int i = *(signed char *)(&arr[0]);
+    /*     int i = *(signed char *)(&arr[0]);
     i *= 1 << sizeof(char);
     i = i | arr[1];
     return i;  */
@@ -45,7 +44,6 @@ int read_2_byte_char(unsigned char *arr)
     //printf("union: %x%x, num is %d\n", b.bytes[1], b.bytes[0],b.num);
 
     return b.num;
-
 }
 
 void prror(char *error_message)
@@ -57,25 +55,27 @@ void request_list(int server_fd)
 {
     int count = 0, file_count = 0, file_total = 3;
     unsigned char buffer[200];
-    while ( file_count<file_total)
+    while (file_count < file_total)
     {
-        
-        if(count ==0){
+
+        if (count == 0)
+        {
             recv(server_fd, buffer, 1, 0);
             //printf("0x%02x|\n", read_1_byte(buffer[0]));
         }
-        else if (count ==1){
+        else if (count == 1)
+        {
             recv(server_fd, buffer, 2, 0);
-            
-            file_total=read_2_byte_char(buffer);
+
+            file_total = read_2_byte_char(buffer);
             //printf("%d\n",file_total);
             //printf("%x%x|\n", buffer[1],buffer[0]);
-            
         }
-        else{
+        else
+        {
             recv(server_fd, buffer, sizeof(buffer), 0);
             char filenames[20] = {0};
-            
+
             printf("%s\n", buffer);
             file_count++;
         }
@@ -85,27 +85,40 @@ void request_list(int server_fd)
         //sleep(1);
         //printf("\n");
         memset(buffer, 0, sizeof(buffer));
-        
     }
     return;
-
 }
 void download(int server_fd, char *filename)
 {
-    char buffer[1024];
+    char buffer[200];
 
-    FILE *fp = fopen(filename, "w");
-    if (NULL == fp)
+    FILE *fp = fopen(filename, "w");    
+    if (fp < 0)
     {
         printf("File Can Not Open To Write\n");
         exit(1);
     }
+
+    int length = 0;
     memset(buffer, 0, sizeof(buffer));
-    int len = 0;
-    while ((len = recv(server_fd, buffer, sizeof(buffer), 0)) > 0)
+    printf("start\n");
+    while ((length = recv(server_fd, buffer, sizeof(buffer), 0)) > 0)
     {
-        printf("len is %d\n", len);
+        printf("length = %d\n", length);
+        if (strcmp(buffer, "OK") == 0)
+        {
+            break;
+        }
+        if (fwrite(buffer, sizeof(char), length, fp) < length)
+        {
+            printf("File:\t%s Write Failed\n", filename);
+            break;
+        }
+        memset(buffer, 0, sizeof(buffer));
     }
+    printf("Receive File:\t%s From Server IP Successful!\n", filename);
+    fclose(fp);
+    printf("client_socket_fd = %d\n", server_fd);
 }
 
 int main(int argc, char **argv)
@@ -142,7 +155,7 @@ int main(int argc, char **argv)
         {
         case 'l':
             // if command is l, it means list all files
-            send(sock_desc, sbuff, strlen(sbuff)+1, 0);
+            send(sock_desc, sbuff, strlen(sbuff) + 1, 0);
             //printf("send l\n");
             request_list(sock_desc);
             //printf("received\n");

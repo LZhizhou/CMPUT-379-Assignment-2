@@ -16,12 +16,11 @@ char server_message[2000];
 
 char *directory;
 
-union two_byte
-{
+union two_byte {
 	int num;
 	unsigned char bytes[2];
 };
-union one_byte{
+union one_byte {
 	int num;
 	unsigned char byte;
 };
@@ -29,16 +28,15 @@ union one_byte{
 void append_string(char *str1, char *str2, int index)
 {
 	for (int i = 0; i < strlen(str2); i++)
-	{	
-		if (index == 0){
-			strcpy(str1,str2);
+	{
+		if (index == 0)
+		{
+			strcpy(str1, str2);
 		}
 		else
 		{
-			memcpy(index+str1,str2,sizeof(str2));
+			memcpy(index + str1, str2, sizeof(str2));
 		}
-		
-		
 	}
 	//printf("str1 is %s, str2 is %s\n",str1,str2);
 }
@@ -98,86 +96,72 @@ void list(int connection_fd, int *message_count)
 			continue;
 		// get names of all files
 		strcpy(filenames[file_count.num], item->d_name);
-		
+
 		//name_len += strlen(item->d_name)+1;
 		//filenames[file_count][strlen(item->d_name)+1] = '\0';
 		file_count.num++;
 	}
 	//printf("malloc done\n");
-	
+
 	prefix.num = *message_count;
 	send(connection_fd, &(prefix.byte), 1, 0);
-	//printf("0x%02x\n", prefix.byte); 
+	//printf("0x%02x\n", prefix.byte);
 
-/* 	unsigned char message_count_byte;
+	/* 	unsigned char message_count_byte;
 	message_count_byte = int2one_byte(*message_count);
 	send(connection_fd, &message_count_byte, sizeof(message_count_byte), 0);
 	printf("0x%02x\n", message_count_byte); */
-//sleep(1);
+	//sleep(1);
 	//printf("|");
 	send(connection_fd, file_count.bytes, 2, 0);
 	//printf("%x%x|", file_count.bytes[1], file_count.bytes[0]);
-/* 	unsigned char file_count_2_byte[2] = {0};
+	/* 	unsigned char file_count_2_byte[2] = {0};
 	int2two_byte(file_count_2_byte, file_count);
 	printf("|");
 	send(connection_fd, file_count_2_byte, sizeof(file_count_2_byte), 0);
 	printf("%x%x|", file_count_2_byte[0], file_count_2_byte[1]); */
 
-	
-	
-	for(int i = 0; i < file_count.num; i++)
+	for (int i = 0; i < file_count.num; i++)
 	{
 		sleep(1);
 		//printf("%s\n",filenames[i]);
 		send(connection_fd, filenames[i], sizeof(filenames[i]), 0);
-		
 	}
 	//printf("\n");
-
 }
 void download(int connection_fd, char *filename)
 {
-	char buffer[1024];
-	FILE *fp = fopen(filename, "r");
+	int read_fd;
+	char buffer[200] = {0};
+	char path[200];
+	sprintf(path,"%s/%s",directory,filename);
 
-	if (NULL == fp)
-	{
-		prror("File Not Found\n");
-	}
-	else
-	{
-		memset(buffer, 0, sizeof(buffer));
-		int length = 0;
-
-		while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
-		{
+	FILE *fp = fopen(path, "r");   
+ 
+	if(NULL == fp)      
+	{        
+		printf("File:%s Not Found\n", filename);      
+	}      
+	else     
+	{        
+		memset(buffer, 0,sizeof(buffer));   
+		int length = 0;        
+ 
+		while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)        
+		{          
 			printf("length = %d\n", length);
-			if (send(connection_fd, buffer, length, 0) < 0)
-			{
-				printf("Send File Failed.\n");
-				break;
-			}
-			memset(buffer, 0, sizeof(buffer));
-		}
-		fclose(fp);
+			if(send(connection_fd, buffer, length, 0) < 0)          
+			{            
+				printf("Send File:%s Failed.\n", filename);            
+				break;          
+			}          
+			memset(buffer, 0,sizeof(buffer));      
+		}                
+		fclose(fp);   
 		sleep(1);
-		printf("File Transfer Successful!\n");
+		send(connection_fd, "OK", 2, 0);   
+		printf("File:%s Transfer Successful!\n", filename);      
 	}
-	/* 	struct stat stat_buf;
-	fgets(server_message, 2000, stdin);
-	send(connection_fd, server_message, strlen(server_message), 0);
-	if (cfileexists(filename) == 1)
-	{
-		char *message = "sending the file";
-		send(connection_fd, message, strlen(message), 0);
-		int read_fd = open(filename, O_RDONLY);
-		fstat(read_fd, &stat_buf);
-		sendfile(connection_fd, read_fd, 0, stat_buf.st_size);
-	}
-	else
-	{
-		printf("we do not have it\n");
-	} */
 }
 
 void *socketThread(void *arg)
