@@ -99,22 +99,31 @@ void download(int server_fd, char *filename)
         exit(1);
     }
 
-    int length = 0;
+    int length = 0, total_length = 0, received_length = 0;
     memset(buffer, 0, sizeof(buffer));
     printf("start\n");
+    int count = 0;
     while ((length = recv(server_fd, buffer, sizeof(buffer), 0)) > 0)
     {
-        printf("length = %d\n", length);
-        if (strcmp(buffer, "OK") == 0)
-        {
-            break;
+        if (count == 0){
+            
+            memcpy(&total_length, buffer, sizeof(int));
+            printf("length = %d\n", total_length);
+            count++;
         }
-        if (fwrite(buffer, sizeof(char), length, fp) < length)
+        else
         {
-            printf("File:\t%s Write Failed\n", filename);
-            break;
+            if (fwrite(buffer, sizeof(char), length, fp) < length)
+            {
+                printf("File:\t%s Write Failed\n", filename);
+                break;
+            }
+            received_length += length;
+            if (received_length>=total_length){
+                break;
+            }
+            memset(buffer, 0, sizeof(buffer));
         }
-        memset(buffer, 0, sizeof(buffer));
     }
     printf("Receive File:\t%s From Server IP Successful!\n", filename);
     fclose(fp);
@@ -175,6 +184,7 @@ int main(int argc, char **argv)
     if (connect(sock_desc, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
         printf("Failed to connect to server\n");
+        exit(1);
     }
 
     while (1)

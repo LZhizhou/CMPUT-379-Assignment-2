@@ -40,20 +40,7 @@ void append_string(char *str1, char *str2, int index)
 	}
 	//printf("str1 is %s, str2 is %s\n",str1,str2);
 }
-/* unsigned char int2one_byte(int x)
-{
-	unsigned char res;
-	res = x & 0xFF;
-	return res;
-}
-void int2two_byte(unsigned char res[2], int x)
-{
-	res[1] = x & 0xFF;
-	if(x>0xFF){
-		res[0] = (x >> 8)&0xFF;
-	}
-	printf("x is %d, two byte is %02x %02x", x, res[0], res[1]);
-} */
+
 
 void prror(char *error_message)
 {
@@ -134,6 +121,7 @@ void download(int connection_fd, char *filename)
 	int read_fd;
 	char buffer[200] = {0};
 	char path[200];
+	unsigned char *res;
 	sprintf(path,"%s/%s",directory,filename);
 
 	FILE *fp = fopen(path, "r");   
@@ -144,9 +132,16 @@ void download(int connection_fd, char *filename)
 	}      
 	else     
 	{        
-		memset(buffer, 0,sizeof(buffer));   
-		int length = 0;        
- 
+		printf("start to sending file\n");
+		//memset(buffer, 0,sizeof(buffer));   
+		int length = 0, total_length = 0;        
+		while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0){
+			total_length+=length;
+		}
+		fclose(fp);
+		send(connection_fd, &total_length, sizeof(int), 0);
+		sleep(1);
+		fp = fopen(path, "r"); 
 		while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)        
 		{          
 			printf("length = %d\n", length);
@@ -158,8 +153,7 @@ void download(int connection_fd, char *filename)
 			memset(buffer, 0,sizeof(buffer));      
 		}                
 		fclose(fp);   
-		sleep(1);
-		send(connection_fd, "OK", 2, 0);   
+		sleep(1); 
 		printf("File:%s Transfer Successful!\n", filename);      
 	}
 }
