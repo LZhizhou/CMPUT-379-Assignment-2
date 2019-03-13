@@ -116,6 +116,20 @@ void list(int connection_fd, int *message_count)
 	}
 	//printf("\n");
 }
+void remove_file(int connection_fd, char *filename){
+	char path[200];
+	sprintf(path,"%s/%s",directory,filename);
+	if (cfileexists(path)){
+		if (remove(path) == 0) 
+      		printf("Deleted successfully"); 
+   		else
+      		printf("Unable to delete the file"); 
+	}
+	else{
+		printf("%s does not exist\n",path);
+	}
+
+}
 void receive_upload(int connection_fd, char *filename){
 	int read_fd;
 	char buffer[200] = {0};
@@ -240,6 +254,10 @@ void *socketThread(void *arg)
 		case 'q':
 			// q command, quit
 			goto close_socket;
+		case 'r':
+			sscanf(client_message, " %c %s", &temp, filename);
+			remove_file(newSocket, filename);
+			break;
 		default:
 			break;
 		}

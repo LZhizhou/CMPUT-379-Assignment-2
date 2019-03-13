@@ -129,6 +129,7 @@ void download(int server_fd, char *filename)
     fclose(fp);
     printf("client_socket_fd = %d\n", server_fd);
 }
+
 void upload(int server_fd, char *filename)
 {
 
@@ -202,6 +203,9 @@ int main(int argc, char **argv)
         sscanf(sbuff, " %c", &command);
         switch (command)
         {
+        case 'r':
+            send(sock_desc, sbuff, sizeof(sbuff), 0);
+            break;
         case 'l':
             // if command is l, it means list all files
             send(sock_desc, sbuff, strlen(sbuff) + 1, 0);
