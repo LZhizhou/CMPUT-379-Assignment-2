@@ -116,6 +116,50 @@ void list(int connection_fd, int *message_count)
 	}
 	//printf("\n");
 }
+void receive_upload(int connection_fd, char *filename){
+	int read_fd;
+	char buffer[200] = {0};
+	char path[200];
+	unsigned char *res;
+	sprintf(path,"%s/%s",directory,filename);
+	FILE *fp = fopen(path, "w");
+    if (fp < 0)
+    {
+        printf("File Can Not Open To Write\n");
+        exit(1);
+    }
+
+    int length = 0, total_length = 0, received_length = 0;
+    memset(buffer, 0, sizeof(buffer));
+    printf("start\n");
+    int count = 0;
+    while ((length = recv(connection_fd, buffer, sizeof(buffer), 0)) > 0)
+    {
+        if (count == 0){
+            
+            memcpy(&total_length, buffer, sizeof(int));
+            printf("length = %d\n", total_length);
+            count++;
+        }
+        else
+        {
+            if (fwrite(buffer, sizeof(char), length, fp) < length)
+            {
+                printf("File:\t%s Write Failed\n", filename);
+                break;
+            }
+            received_length += length;
+            if (received_length>=total_length){
+                break;
+            }
+            memset(buffer, 0, sizeof(buffer));
+        }
+    }
+    printf("Receive File:\t%s From client IP Successful!\n", filename);
+    fclose(fp);
+    printf("server_socket_fd = %d\n", connection_fd);
+	
+}
 void download(int connection_fd, char *filename)
 {
 	int read_fd;
@@ -184,6 +228,8 @@ void *socketThread(void *arg)
 			list(newSocket, &message_count);
 			break;
 		case 'u':
+			sscanf(client_message, " %c %s", &temp, filename);
+			receive_upload(newSocket, filename);
 			break;
 		case 'd':
 			// d command, send

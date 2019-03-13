@@ -143,7 +143,14 @@ void upload(int server_fd, char *filename)
     else
     {
         memset(buffer, 0, sizeof(buffer));
-        int length = 0;
+        int length = 0, total_length = 0; 
+        while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0){
+			total_length+=length;
+		}
+		fclose(fp);
+        send(server_fd, &total_length, sizeof(int), 0);
+        sleep(1);
+        fp = fopen(filename, "r");
         while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
         {
             printf("length = %d\n", length);
@@ -156,7 +163,7 @@ void upload(int server_fd, char *filename)
         }
         sleep(1);
         fclose(fp);
-        send(server_fd, "OK", 2, 0);
+        
         printf("File:%s Transfer Successful!\n", filename);
     }
 }
