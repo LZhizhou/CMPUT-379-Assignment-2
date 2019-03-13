@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <sys/sendfile.h>
 #include <malloc.h>
+#include <libxml/parser.h>
+#include <openssl/md5.h>
 
 char server_message[2000];
 
