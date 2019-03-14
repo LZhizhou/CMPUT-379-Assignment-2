@@ -149,7 +149,6 @@ char* exist_in_xml(char* filename){
 		{
 			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"knownas")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)filename))
 			{
-				
 				for (xmlNodePtr save_node = curr_node->xmlChildrenNode; save_node != NULL; save_node = save_node->next){
 					if ((!xmlStrcmp(save_node->name, (const xmlChar *)"saveas"))){
 						return (char*)xmlNodeGetContent(save_node);
@@ -164,30 +163,25 @@ char* exist_in_xml(char* filename){
 
 void list(int connection_fd, int *message_count)
 { //send all files to connection_fd
-
-	char buf[1024] = {0};
-
-	DIR *dir;
-	struct dirent *item;
-
-	dir = opendir(directory);
-	int name_len = 0;
-	char filenames[20][50] = {0};
+	xmlNodePtr root = xmlDocGetRootElement(doc);
 	union one_byte prefix;
 	union two_byte file_count;
 	file_count.num = 0;
+	char filenames[20][50] = {0};
 
-	while ((item = readdir(dir)) != NULL)
+	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
 	{
-		if ((strcmp(item->d_name, ".") == 0) || (strcmp(item->d_name, "..") == 0))
-			continue;
-		// get names of all files
-		strcpy(filenames[file_count.num], item->d_name);
+		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
+		{
+			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"knownas")))
+			{
+				strcpy(filenames[file_count.num], (char*)xmlNodeGetContent(tag_node));
+				file_count.num++;
+			}
+		}
 
-		//name_len += strlen(item->d_name)+1;
-		//filenames[file_count][strlen(item->d_name)+1] = '\0';
-		file_count.num++;
 	}
+
 	//printf("malloc done\n");
 
 	prefix.num = *message_count;
