@@ -71,19 +71,37 @@ void create_xml()
 	doc = xmlNewDoc(BAD_CAST "1.0");
 	root_node = xmlNewNode(NULL, BAD_CAST "repository");
 	xmlDocSetRootElement(doc, root_node);
+	char *path;
+	path = (char *)malloc(strlen(directory) + strlen(".dedup") + 2);
+	strcpy(path, directory);
+	strcat(path, "/.dedup");
+	xmlSaveFormatFileEnc(path, doc, "UTF-8", 1);
+
+	xmlFreeDoc(doc);
+	xmlCleanupParser();
+	xmlMemoryDump();
+	doc = xmlParseFile(path);
+	free(path);
 }
-
-
 
 void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 {
 
 	xmlNodePtr root = xmlDocGetRootElement(doc);
-	
+
 	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
 	{
-		if (curr_node->xmlChildrenNode != NULL)
+		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
 		{
+			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"hashname")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)hash))
+			{
+				xmlNewTextChild(curr_node, NULL, "knownas", filename);
+				return;
+			}
+		}
+		/* 		if (curr_node->xmlChildrenNode != NULL)
+		{
+			
 			printf("curr_node is %s\n", curr_node->name);
 			xmlChar *test = xmlNodeGetContent(curr_node->xmlChildrenNode);
 			printf("test: %s\n", test);
@@ -100,7 +118,7 @@ void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 				xmlNewTextChild(curr_node, NULL, "knownas", filename);
 				return;
 			}
-		}
+		} */
 	}
 	printf("new child\n");
 
@@ -109,45 +127,31 @@ void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 	xmlNewTextChild(curr_node, NULL, "hashname", hash);
 	xmlNewTextChild(curr_node, NULL, "knownas", filename);
 }
+
 void remove_xml(char *filename)
 {
 	xmlNodePtr root = xmlDocGetRootElement(doc);
+
 	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
 	{
-		if (curr_node->xmlChildrenNode != NULL)
+		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
 		{
-			for (xmlNodePtr sub_node = curr_node->xmlChildrenNode; sub_node != NULL; sub_node = sub_node->next)
+			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"knownas")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)filename))
 			{
-				if (xmlStrcmp(xmlNodeGetContent(sub_node), BAD_CAST filename) == 0)
+				xmlUnlinkNode(tag_node);
+				xmlFreeNode(tag_node);
+
+				if (xmlChildElementCount(curr_node) == 1)
 				{
-					if (sub_node->next == NULL && xmlStrcmp(sub_node->prev->name, curr_node->xmlChildrenNode->name))
-					{
-						printf("yes\n");
-						xmlNodePtr tempNode;
-						tempNode = curr_node->next;
-						xmlUnlinkNode(curr_node->xmlChildrenNode);
-						xmlFreeNode(curr_node->xmlChildrenNode);
-						xmlUnlinkNode(sub_node);
-						xmlFreeNode(sub_node);
-						xmlUnlinkNode(curr_node);
-						xmlFreeNode(curr_node);
-						curr_node = tempNode;
-						break;
-					}
-					else
-					{
-						xmlNodePtr tempNode;
-						tempNode = sub_node->next;
-						xmlUnlinkNode(sub_node);
-						xmlFreeNode(sub_node);
-						sub_node = tempNode;
-						continue;
-					}
+					xmlUnlinkNode(curr_node);
+					xmlFreeNode(curr_node);
+					continue;
 				}
 			}
 		}
 	}
 }
+
 void list(int connection_fd, int *message_count)
 { //send all files to connection_fd
 
@@ -251,6 +255,13 @@ void receive_upload(int connection_fd, char *filename)
 		{
 
 			memcpy(&total_length, buffer, sizeof(int));
+			if (total_length == 0)
+			{
+				printf("%s does not exits\n", filename);
+				fclose(fp);
+				remove(path);
+				return;
+			}
 			printf("length = %d\n", total_length);
 			count++;
 		}
@@ -301,6 +312,7 @@ void download(int connection_fd, char *filename)
 	if (NULL == fp)
 	{
 		printf("File:%s Not Found\n", filename);
+		send(connection_fd, &buffer, sizeof(int), 0);
 	}
 	else
 	{

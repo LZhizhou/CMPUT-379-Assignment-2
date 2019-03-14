@@ -105,9 +105,17 @@ void download(int server_fd, char *filename)
     int count = 0;
     while ((length = recv(server_fd, buffer, sizeof(buffer), 0)) > 0)
     {
-        if (count == 0){
-            
+        if (count == 0)
+        {
+
             memcpy(&total_length, buffer, sizeof(int));
+            if (total_length == 0)
+            {
+                fclose(fp);
+                remove(filename);
+                printf("%s does not exits\n", filename);
+                return;
+            }
             printf("length = %d\n", total_length);
             count++;
         }
@@ -119,7 +127,8 @@ void download(int server_fd, char *filename)
                 break;
             }
             received_length += length;
-            if (received_length>=total_length){
+            if (received_length >= total_length)
+            {
                 break;
             }
             memset(buffer, 0, sizeof(buffer));
@@ -133,22 +142,24 @@ void download(int server_fd, char *filename)
 void upload(int server_fd, char *filename)
 {
 
-    char buffer[200];
+    char buffer[200] = {0};
 
     FILE *fp = fopen(filename, "r");
 
     if (NULL == fp)
     {
         printf("File:%s Not Found\n", filename);
+        send(server_fd, &buffer, sizeof(int), 0);
     }
     else
     {
         memset(buffer, 0, sizeof(buffer));
-        int length = 0, total_length = 0; 
-        while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0){
-			total_length+=length;
-		}
-		fclose(fp);
+        int length = 0, total_length = 0;
+        while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
+        {
+            total_length += length;
+        }
+        fclose(fp);
         send(server_fd, &total_length, sizeof(int), 0);
         sleep(1);
         fp = fopen(filename, "r");
@@ -164,7 +175,7 @@ void upload(int server_fd, char *filename)
         }
         sleep(1);
         fclose(fp);
-        
+
         printf("File:%s Transfer Successful!\n", filename);
     }
 }
