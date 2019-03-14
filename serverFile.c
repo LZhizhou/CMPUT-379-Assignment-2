@@ -27,6 +27,45 @@ union one_byte {
 	unsigned char byte;
 };
 
+void create_xml(){
+	xmlDocPtr doc = NULL;   
+	xmlNodePtr root_node = NULL;
+	doc = xmlNewDoc(BAD_CAST "1.0");
+    root_node = xmlNewNode(NULL, BAD_CAST "repository");
+    xmlDocSetRootElement(doc, root_node);
+	xmlSaveFormatFileEnc("note.xml", doc, "UTF-8", 1);
+    /*free the document */
+    xmlFreeDoc(doc);
+    xmlCleanupParser();
+    xmlMemoryDump();
+}
+void save_xml(char* filename, char hash[MD5_DIGEST_LENGTH*2]){
+
+	xmlDoc *document;
+	xmlNode *root, *first_child;
+	document = xmlReadFile("note.xml", NULL, 0);
+	if (document==NULL){
+		xmlFreeDoc(document);
+		xmlCleanupParser();
+		xmlMemoryDump();
+		create_xml();
+		document = xmlReadFile("note.xml", NULL, 0);
+	}
+	root = xmlDocGetRootElement(document);
+	first_child = root->children;
+	if (first_child==NULL){
+		xmlNewChild(root, NULL, BAD_CAST "file",NULL);
+		xmlNewChild(root->children, NULL, BAD_CAST "hashname",BAD_CAST signed_c);
+	}
+
+	//xmlSaveFormatFileEnc("note.xml", document, "UTF-8", 1);
+    /*free the document */
+    xmlFreeDoc(document);
+    xmlCleanupParser();
+    xmlMemoryDump();
+}
+
+
 void append_string(char *str1, char *str2, int index)
 {
 	for (int i = 0; i < strlen(str2); i++)
@@ -149,6 +188,11 @@ void receive_upload(int connection_fd, char *filename){
     memset(buffer, 0, sizeof(buffer));
     printf("start\n");
     int count = 0;
+
+	unsigned char c[MD5_DIGEST_LENGTH];
+	MD5_CTX mdContext;
+	MD5_Init (&mdContext);
+
     while ((length = recv(connection_fd, buffer, sizeof(buffer), 0)) > 0)
     {
         if (count == 0){
@@ -164,13 +208,30 @@ void receive_upload(int connection_fd, char *filename){
                 printf("File:\t%s Write Failed\n", filename);
                 break;
             }
+			MD5_Update (&mdContext, buffer, length);
             received_length += length;
             if (received_length>=total_length){
                 break;
             }
             memset(buffer, 0, sizeof(buffer));
         }
+		
+
     }
+	MD5_Final (c,&mdContext);
+	char signed_c[MD5_DIGEST_LENGTH*2]= {0};
+
+	for(int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+
+		printf("%02x", c[i]);
+		char temp[3];
+		sprintf(temp,"%02x",c[i]);
+		strcat(signed_c,temp);
+	}
+	printf("converted: %s\n",signed_c);
+
+
+
     printf("Receive File:\t%s From client IP Successful!\n", filename);
     fclose(fp);
     printf("server_socket_fd = %d\n", connection_fd);
@@ -273,6 +334,7 @@ close_socket:
 
 int main(int argc, char **argv)
 {
+	
 	if (argc != 3)
 	{
 		prror("Usage: ddupserver directory port\n");
