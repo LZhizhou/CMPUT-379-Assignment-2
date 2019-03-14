@@ -84,7 +84,8 @@ void create_xml()
 	free(path);
 }
 
-void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
+// return 1 if file content exists
+int save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 {
 
 	xmlNodePtr root = xmlDocGetRootElement(doc);
@@ -96,39 +97,22 @@ void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"hashname")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)hash))
 			{
 				xmlNewTextChild(curr_node, NULL, "knownas", filename);
-				return;
+				return 1;
 			}
 		}
-		/* 		if (curr_node->xmlChildrenNode != NULL)
-		{
-			
-			printf("curr_node is %s\n", curr_node->name);
-			xmlChar *test = xmlNodeGetContent(curr_node->xmlChildrenNode);
-			printf("test: %s\n", test);
-			for (int i = 0; i < sizeof(test); i++)
-			{
-				printf("%02x ", test[i]);
-			}
-			printf("\n");
-			xmlFree(test);
 
-			printf("%d\n", xmlStrcmp(xmlNodeGetContent(curr_node->xmlChildrenNode), BAD_CAST hash));
-			if (xmlStrcmp(xmlNodeGetContent(curr_node->xmlChildrenNode), BAD_CAST hash) == 0)
-			{
-				xmlNewTextChild(curr_node, NULL, "knownas", filename);
-				return;
-			}
-		} */
 	}
 	printf("new child\n");
 
 	xmlNodePtr curr_node = xmlNewTextChild(root, NULL, "file", NULL);
 	printf("bash is %s, filename is %s\n", hash, filename);
 	xmlNewTextChild(curr_node, NULL, "hashname", hash);
+	xmlNewTextChild(curr_node, NULL, "saveas", filename);
 	xmlNewTextChild(curr_node, NULL, "knownas", filename);
+	return 0;
 }
-
-void remove_xml(char *filename)
+// return 1, if need to remove whole <file/>
+int remove_xml(char *filename)
 {
 	xmlNodePtr root = xmlDocGetRootElement(doc);
 
@@ -141,15 +125,41 @@ void remove_xml(char *filename)
 				xmlUnlinkNode(tag_node);
 				xmlFreeNode(tag_node);
 
-				if (xmlChildElementCount(curr_node) == 1)
+				printf("child:%ld\n",xmlChildElementCount(curr_node));
+				if (xmlChildElementCount(curr_node) == 2)
 				{
+					
 					xmlUnlinkNode(curr_node);
 					xmlFreeNode(curr_node);
-					continue;
+					return 1;
+					
 				}
+				return 0;
 			}
 		}
 	}
+	return 0;
+}
+char* exist_in_xml(char* filename){
+	xmlNodePtr root = xmlDocGetRootElement(doc);
+
+	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
+	{
+		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
+		{
+			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"knownas")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)filename))
+			{
+				
+				for (xmlNodePtr save_node = curr_node->xmlChildrenNode; save_node != NULL; save_node = save_node->next){
+					if ((!xmlStrcmp(save_node->name, (const xmlChar *)"saveas"))){
+						return (char*)xmlNodeGetContent(save_node);
+					}
+				}
+			}
+		}
+
+	}
+	return 0;
 }
 
 void list(int connection_fd, int *message_count)
@@ -209,22 +219,11 @@ void list(int connection_fd, int *message_count)
 void remove_file(int connection_fd, char *filename)
 {
 	char path[200];
-	sprintf(path, "%s/%s", directory, filename);
-	if (cfileexists(path))
-	{
-		if (remove(path) == 0)
-		{
-			printf("Deleted successfully\n");
-			remove_xml(filename);
-		}
-
-		else
-			printf("Unable to delete the file\n");
+	sprintf(path, "%s/%s", directory, exist_in_xml(filename));
+	if (remove_xml(filename)){
+		remove(path);
 	}
-	else
-	{
-		printf("%s does not exist\n", path);
-	}
+	
 }
 void receive_upload(int connection_fd, char *filename)
 {
@@ -233,11 +232,15 @@ void receive_upload(int connection_fd, char *filename)
 	char path[200];
 	unsigned char *res;
 	sprintf(path, "%s/%s", directory, filename);
-	int exist = cfileexists(path);
-	send(connection_fd, &exist, sizeof(int), 0);
-	if (exist) {
+	int exist = 0;
+	if (exist_in_xml(filename)){
+		exist =1;
+		send(connection_fd, &exist, sizeof(int), 0);
 		printf("exist\n");
 		return;
+	}
+	else{
+		send(connection_fd, &exist, sizeof(int), 0);
 	}
 	
 	FILE *fp = fopen(path, "w");
@@ -300,10 +303,15 @@ void receive_upload(int connection_fd, char *filename)
 		strcat(signed_c, temp);
 	}
 	printf("converted: %s\n", signed_c);
-	save_xml(filename, signed_c);
+	fclose(fp);
+	// return 1 if file content exist
+	if (save_xml(filename, signed_c)){
+		remove(path);
+	}
+
 
 	printf("Receive File:\t%s From client IP Successful!\n", filename);
-	fclose(fp);
+	
 	printf("server_socket_fd = %d\n", connection_fd);
 }
 void download(int connection_fd, char *filename)
@@ -312,18 +320,19 @@ void download(int connection_fd, char *filename)
 	char buffer[200] = {0};
 	char path[200];
 	unsigned char *res;
+
+	char* saveas = 	exist_in_xml(filename);
+	if (saveas == 0){
+		
+		int error = -1;
+		send(connection_fd, &error, sizeof(int), 0);
+		return;
+	}
 	sprintf(path, "%s/%s", directory, filename);
 
 	FILE *fp = fopen(path, "r");
 
-	if (NULL == fp)
-	{
-		int error = -1
-		printf("File:%s Not Found\n", filename);
-		send(connection_fd, &error, sizeof(int), 0);
-	}
-	else
-	{
+
 		printf("start to sending file\n");
 		//memset(buffer, 0,sizeof(buffer));
 		int length = 0, total_length = 0;
@@ -348,7 +357,7 @@ void download(int connection_fd, char *filename)
 		fclose(fp);
 		sleep(1);
 		printf("File:%s Transfer Successful!\n", filename);
-	}
+	
 }
 void before_term()
 {

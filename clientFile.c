@@ -157,7 +157,7 @@ void upload(int server_fd, char *filename)
 
     if (NULL == fp)
     {
-        int error= -1
+        int error= -1;
         printf("File:%s Not Found\n", filename);
         send(server_fd, &error, sizeof(int), 0);
     }
