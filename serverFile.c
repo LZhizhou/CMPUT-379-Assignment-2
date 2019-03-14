@@ -262,7 +262,7 @@ void receive_upload(int connection_fd, char *filename)
 		{
 
 			memcpy(&total_length, buffer, sizeof(int));
-			if (total_length == 0)
+			if (total_length == -1)
 			{
 				printf("%s does not exits\n", filename);
 				fclose(fp);
@@ -318,8 +318,9 @@ void download(int connection_fd, char *filename)
 
 	if (NULL == fp)
 	{
+		int error = -1
 		printf("File:%s Not Found\n", filename);
-		send(connection_fd, &buffer, sizeof(int), 0);
+		send(connection_fd, &error, sizeof(int), 0);
 	}
 	else
 	{

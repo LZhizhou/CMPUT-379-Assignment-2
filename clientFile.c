@@ -109,7 +109,7 @@ void download(int server_fd, char *filename)
         {
 
             memcpy(&total_length, buffer, sizeof(int));
-            if (total_length == 0)
+            if (total_length == -1)
             {
                 fclose(fp);
                 remove(filename);
@@ -157,8 +157,9 @@ void upload(int server_fd, char *filename)
 
     if (NULL == fp)
     {
+        int error= -1
         printf("File:%s Not Found\n", filename);
-        send(server_fd, &buffer, sizeof(int), 0);
+        send(server_fd, &error, sizeof(int), 0);
     }
     else
     {
@@ -169,6 +170,7 @@ void upload(int server_fd, char *filename)
             total_length += length;
         }
         fclose(fp);
+        
         send(server_fd, &total_length, sizeof(int), 0);
         sleep(1);
         fp = fopen(filename, "r");
