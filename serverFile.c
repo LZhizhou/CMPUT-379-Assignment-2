@@ -13,8 +13,10 @@
 #include <malloc.h>
 #include <libxml/parser.h>
 #include <openssl/md5.h>
+#include <signal.h>
 
 char server_message[2000];
+xmlDocPtr doc;
 
 char *directory;
 
@@ -26,45 +28,6 @@ union one_byte {
 	int num;
 	unsigned char byte;
 };
-
-void create_xml(){
-	xmlDocPtr doc = NULL;   
-	xmlNodePtr root_node = NULL;
-	doc = xmlNewDoc(BAD_CAST "1.0");
-    root_node = xmlNewNode(NULL, BAD_CAST "repository");
-    xmlDocSetRootElement(doc, root_node);
-	xmlSaveFormatFileEnc("note.xml", doc, "UTF-8", 1);
-    /*free the document */
-    xmlFreeDoc(doc);
-    xmlCleanupParser();
-    xmlMemoryDump();
-}
-void save_xml(char* filename, char hash[MD5_DIGEST_LENGTH*2]){
-
-	xmlDoc *document;
-	xmlNode *root, *first_child;
-	document = xmlReadFile("note.xml", NULL, 0);
-	if (document==NULL){
-		xmlFreeDoc(document);
-		xmlCleanupParser();
-		xmlMemoryDump();
-		create_xml();
-		document = xmlReadFile("note.xml", NULL, 0);
-	}
-	root = xmlDocGetRootElement(document);
-	first_child = root->children;
-	if (first_child==NULL){
-		xmlNewChild(root, NULL, BAD_CAST "file",NULL);
-		xmlNewChild(root->children, NULL, BAD_CAST "hashname",BAD_CAST signed_c);
-	}
-
-	//xmlSaveFormatFileEnc("note.xml", document, "UTF-8", 1);
-    /*free the document */
-    xmlFreeDoc(document);
-    xmlCleanupParser();
-    xmlMemoryDump();
-}
-
 
 void append_string(char *str1, char *str2, int index)
 {
@@ -81,7 +44,6 @@ void append_string(char *str1, char *str2, int index)
 	}
 	//printf("str1 is %s, str2 is %s\n",str1,str2);
 }
-
 
 void prror(char *error_message)
 {
@@ -102,6 +64,89 @@ int cfileexists(const char *filename)
 		return 1;
 	}
 	return 0;
+}
+void create_xml()
+{
+	xmlNodePtr root_node;
+	doc = xmlNewDoc(BAD_CAST "1.0");
+	root_node = xmlNewNode(NULL, BAD_CAST "repository");
+	xmlDocSetRootElement(doc, root_node);
+}
+
+
+
+void save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
+{
+
+	xmlNodePtr root = xmlDocGetRootElement(doc);
+	
+	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
+	{
+		if (curr_node->xmlChildrenNode != NULL)
+		{
+			printf("curr_node is %s\n", curr_node->name);
+			xmlChar *test = xmlNodeGetContent(curr_node->xmlChildrenNode);
+			printf("test: %s\n", test);
+			for (int i = 0; i < sizeof(test); i++)
+			{
+				printf("%02x ", test[i]);
+			}
+			printf("\n");
+			xmlFree(test);
+
+			printf("%d\n", xmlStrcmp(xmlNodeGetContent(curr_node->xmlChildrenNode), BAD_CAST hash));
+			if (xmlStrcmp(xmlNodeGetContent(curr_node->xmlChildrenNode), BAD_CAST hash) == 0)
+			{
+				xmlNewTextChild(curr_node, NULL, "knownas", filename);
+				return;
+			}
+		}
+	}
+	printf("new child\n");
+
+	xmlNodePtr curr_node = xmlNewTextChild(root, NULL, "file", NULL);
+	printf("bash is %s, filename is %s\n", hash, filename);
+	xmlNewTextChild(curr_node, NULL, "hashname", hash);
+	xmlNewTextChild(curr_node, NULL, "knownas", filename);
+}
+void remove_xml(char *filename)
+{
+	xmlNodePtr root = xmlDocGetRootElement(doc);
+	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
+	{
+		if (curr_node->xmlChildrenNode != NULL)
+		{
+			for (xmlNodePtr sub_node = curr_node->xmlChildrenNode; sub_node != NULL; sub_node = sub_node->next)
+			{
+				if (xmlStrcmp(xmlNodeGetContent(sub_node), BAD_CAST filename) == 0)
+				{
+					if (sub_node->next == NULL && xmlStrcmp(sub_node->prev->name, curr_node->xmlChildrenNode->name))
+					{
+						printf("yes\n");
+						xmlNodePtr tempNode;
+						tempNode = curr_node->next;
+						xmlUnlinkNode(curr_node->xmlChildrenNode);
+						xmlFreeNode(curr_node->xmlChildrenNode);
+						xmlUnlinkNode(sub_node);
+						xmlFreeNode(sub_node);
+						xmlUnlinkNode(curr_node);
+						xmlFreeNode(curr_node);
+						curr_node = tempNode;
+						break;
+					}
+					else
+					{
+						xmlNodePtr tempNode;
+						tempNode = sub_node->next;
+						xmlUnlinkNode(sub_node);
+						xmlFreeNode(sub_node);
+						sub_node = tempNode;
+						continue;
+					}
+				}
+			}
+		}
+	}
 }
 void list(int connection_fd, int *message_count)
 { //send all files to connection_fd
@@ -157,85 +202,91 @@ void list(int connection_fd, int *message_count)
 	}
 	//printf("\n");
 }
-void remove_file(int connection_fd, char *filename){
+void remove_file(int connection_fd, char *filename)
+{
 	char path[200];
-	sprintf(path,"%s/%s",directory,filename);
-	if (cfileexists(path)){
-		if (remove(path) == 0) 
-      		printf("Deleted successfully"); 
-   		else
-      		printf("Unable to delete the file"); 
-	}
-	else{
-		printf("%s does not exist\n",path);
-	}
+	sprintf(path, "%s/%s", directory, filename);
+	if (cfileexists(path))
+	{
+		if (remove(path) == 0)
+		{
+			printf("Deleted successfully\n");
+			remove_xml(filename);
+		}
 
+		else
+			printf("Unable to delete the file\n");
+	}
+	else
+	{
+		printf("%s does not exist\n", path);
+	}
 }
-void receive_upload(int connection_fd, char *filename){
+void receive_upload(int connection_fd, char *filename)
+{
 	int read_fd;
 	char buffer[200] = {0};
 	char path[200];
 	unsigned char *res;
-	sprintf(path,"%s/%s",directory,filename);
+	sprintf(path, "%s/%s", directory, filename);
 	FILE *fp = fopen(path, "w");
-    if (fp < 0)
-    {
-        printf("File Can Not Open To Write\n");
-        exit(1);
-    }
+	if (fp < 0)
+	{
+		printf("File Can Not Open To Write\n");
+		exit(1);
+	}
 
-    int length = 0, total_length = 0, received_length = 0;
-    memset(buffer, 0, sizeof(buffer));
-    printf("start\n");
-    int count = 0;
+	int length = 0, total_length = 0, received_length = 0;
+	memset(buffer, 0, sizeof(buffer));
+	printf("start\n");
+	int count = 0;
 
 	unsigned char c[MD5_DIGEST_LENGTH];
 	MD5_CTX mdContext;
-	MD5_Init (&mdContext);
+	MD5_Init(&mdContext);
 
-    while ((length = recv(connection_fd, buffer, sizeof(buffer), 0)) > 0)
-    {
-        if (count == 0){
-            
-            memcpy(&total_length, buffer, sizeof(int));
-            printf("length = %d\n", total_length);
-            count++;
-        }
-        else
-        {
-            if (fwrite(buffer, sizeof(char), length, fp) < length)
-            {
-                printf("File:\t%s Write Failed\n", filename);
-                break;
-            }
-			MD5_Update (&mdContext, buffer, length);
-            received_length += length;
-            if (received_length>=total_length){
-                break;
-            }
-            memset(buffer, 0, sizeof(buffer));
-        }
-		
+	while ((length = recv(connection_fd, buffer, sizeof(buffer), 0)) > 0)
+	{
+		if (count == 0)
+		{
 
-    }
-	MD5_Final (c,&mdContext);
-	char signed_c[MD5_DIGEST_LENGTH*2]= {0};
+			memcpy(&total_length, buffer, sizeof(int));
+			printf("length = %d\n", total_length);
+			count++;
+		}
+		else
+		{
+			if (fwrite(buffer, sizeof(char), length, fp) < length)
+			{
+				printf("File:\t%s Write Failed\n", filename);
+				break;
+			}
+			MD5_Update(&mdContext, buffer, length);
+			received_length += length;
+			if (received_length >= total_length)
+			{
+				break;
+			}
+			memset(buffer, 0, sizeof(buffer));
+		}
+	}
+	MD5_Final(c, &mdContext);
+	char signed_c[MD5_DIGEST_LENGTH * 2] = {0};
 
-	for(int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+	for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
+	{
 
 		printf("%02x", c[i]);
 		char temp[3];
-		sprintf(temp,"%02x",c[i]);
-		strcat(signed_c,temp);
+		sprintf(temp, "%02x", c[i]);
+		strcat(signed_c, temp);
 	}
-	printf("converted: %s\n",signed_c);
+	printf("converted: %s\n", signed_c);
+	save_xml(filename, signed_c);
 
-
-
-    printf("Receive File:\t%s From client IP Successful!\n", filename);
-    fclose(fp);
-    printf("server_socket_fd = %d\n", connection_fd);
-	
+	printf("Receive File:\t%s From client IP Successful!\n", filename);
+	fclose(fp);
+	printf("server_socket_fd = %d\n", connection_fd);
 }
 void download(int connection_fd, char *filename)
 {
@@ -243,40 +294,55 @@ void download(int connection_fd, char *filename)
 	char buffer[200] = {0};
 	char path[200];
 	unsigned char *res;
-	sprintf(path,"%s/%s",directory,filename);
+	sprintf(path, "%s/%s", directory, filename);
 
-	FILE *fp = fopen(path, "r");   
- 
-	if(NULL == fp)      
-	{        
-		printf("File:%s Not Found\n", filename);      
-	}      
-	else     
-	{        
+	FILE *fp = fopen(path, "r");
+
+	if (NULL == fp)
+	{
+		printf("File:%s Not Found\n", filename);
+	}
+	else
+	{
 		printf("start to sending file\n");
-		//memset(buffer, 0,sizeof(buffer));   
-		int length = 0, total_length = 0;        
-		while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0){
-			total_length+=length;
+		//memset(buffer, 0,sizeof(buffer));
+		int length = 0, total_length = 0;
+		while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
+		{
+			total_length += length;
 		}
 		fclose(fp);
 		send(connection_fd, &total_length, sizeof(int), 0);
 		sleep(1);
-		fp = fopen(path, "r"); 
-		while((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)        
-		{          
+		fp = fopen(path, "r");
+		while ((length = fread(buffer, sizeof(char), sizeof(buffer), fp)) > 0)
+		{
 			printf("length = %d\n", length);
-			if(send(connection_fd, buffer, length, 0) < 0)          
-			{            
-				printf("Send File:%s Failed.\n", filename);            
-				break;          
-			}          
-			memset(buffer, 0,sizeof(buffer));      
-		}                
-		fclose(fp);   
-		sleep(1); 
-		printf("File:%s Transfer Successful!\n", filename);      
+			if (send(connection_fd, buffer, length, 0) < 0)
+			{
+				printf("Send File:%s Failed.\n", filename);
+				break;
+			}
+			memset(buffer, 0, sizeof(buffer));
+		}
+		fclose(fp);
+		sleep(1);
+		printf("File:%s Transfer Successful!\n", filename);
 	}
+}
+void before_term()
+{
+
+	char *path;
+	path = (char *)malloc(strlen(directory) + strlen(".dedup") + 2);
+	strcpy(path, directory);
+	strcat(path, "/.dedup");
+	xmlSaveFormatFileEnc(path, doc, "UTF-8", 1);
+	free(path);
+	xmlFreeDoc(doc);
+	xmlCleanupParser();
+	xmlMemoryDump();
+	exit(0);
 }
 
 void *socketThread(void *arg)
@@ -334,7 +400,7 @@ close_socket:
 
 int main(int argc, char **argv)
 {
-	
+
 	if (argc != 3)
 	{
 		prror("Usage: ddupserver directory port\n");
@@ -372,6 +438,22 @@ int main(int argc, char **argv)
 		printf("Error\n");
 	pthread_t tid[60];
 	int i = 0;
+	char *path;
+	path = (char *)malloc(strlen(directory) + strlen(".dedup") + 2);
+	strcpy(path, directory);
+	strcat(path, "/.dedup");
+	if (cfileexists(path))
+	{
+		doc = xmlParseFile(path);
+	}
+	else
+	{
+		create_xml();
+	}
+	free(path);
+
+	signal(SIGTERM, before_term);
+	signal(SIGINT, before_term);
 	while (1)
 	{
 		//Accept call creates a new socket for the incoming connection
