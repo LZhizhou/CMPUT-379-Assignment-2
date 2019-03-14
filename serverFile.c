@@ -17,6 +17,7 @@
 
 char server_message[2000];
 xmlDocPtr doc;
+int accessing = 0;
 
 char *directory;
 
@@ -28,6 +29,13 @@ union one_byte {
 	int num;
 	unsigned char byte;
 };
+void lock(){
+	while(accessing);
+	accessing = 1;
+}
+void unlock(){
+	accessing =0;
+}
 
 void append_string(char *str1, char *str2, int index)
 {
@@ -87,7 +95,7 @@ void create_xml()
 // return 1 if file content exists
 int save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 {
-
+	lock();
 	xmlNodePtr root = xmlDocGetRootElement(doc);
 
 	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
@@ -96,26 +104,28 @@ int save_xml(char *filename, char hash[MD5_DIGEST_LENGTH * 2])
 		{
 			if ((!xmlStrcmp(tag_node->name, (const xmlChar *)"hashname")) && !xmlStrcmp(xmlNodeGetContent(tag_node), (const xmlChar *)hash))
 			{
+				
 				xmlNewTextChild(curr_node, NULL, "knownas", filename);
+				unlock();
 				return 1;
 			}
 		}
 
 	}
 	printf("new child\n");
-
 	xmlNodePtr curr_node = xmlNewTextChild(root, NULL, "file", NULL);
 	printf("bash is %s, filename is %s\n", hash, filename);
 	xmlNewTextChild(curr_node, NULL, "hashname", hash);
 	xmlNewTextChild(curr_node, NULL, "saveas", filename);
 	xmlNewTextChild(curr_node, NULL, "knownas", filename);
+	unlock();
 	return 0;
 }
 // return 1, if need to remove whole <file/>
 int remove_xml(char *filename)
 {
 	xmlNodePtr root = xmlDocGetRootElement(doc);
-
+	lock();
 	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
 	{
 		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
@@ -131,18 +141,21 @@ int remove_xml(char *filename)
 					
 					xmlUnlinkNode(curr_node);
 					xmlFreeNode(curr_node);
+					unlock();
 					return 1;
 					
 				}
+				unlock();
 				return 0;
 			}
 		}
 	}
+	unlock();
 	return 0;
 }
 char* exist_in_xml(char* filename){
 	xmlNodePtr root = xmlDocGetRootElement(doc);
-
+	lock();
 	for (xmlNodePtr curr_node = root->xmlChildrenNode; curr_node != NULL; curr_node = curr_node->next)
 	{
 		for (xmlNodePtr tag_node = curr_node->xmlChildrenNode; tag_node != NULL; tag_node = tag_node->next)
@@ -151,6 +164,7 @@ char* exist_in_xml(char* filename){
 			{
 				for (xmlNodePtr save_node = curr_node->xmlChildrenNode; save_node != NULL; save_node = save_node->next){
 					if ((!xmlStrcmp(save_node->name, (const xmlChar *)"saveas"))){
+						unlock();
 						return (char*)xmlNodeGetContent(save_node);
 					}
 				}
@@ -158,6 +172,7 @@ char* exist_in_xml(char* filename){
 		}
 
 	}
+	unlock();
 	return 0;
 }
 
