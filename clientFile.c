@@ -143,6 +143,15 @@ void upload(int server_fd, char *filename)
 {
 
     char buffer[200] = {0};
+    int exist=0;
+    if (recv(server_fd, &exist, sizeof(int), 0) > 0){
+        printf("exist %d\n",exist);
+        if (exist) {
+            printf("%s already exists\n",filename);
+            return;
+        }
+        
+    }
 
     FILE *fp = fopen(filename, "r");
 

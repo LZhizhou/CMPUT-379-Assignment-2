@@ -233,6 +233,13 @@ void receive_upload(int connection_fd, char *filename)
 	char path[200];
 	unsigned char *res;
 	sprintf(path, "%s/%s", directory, filename);
+	int exist = cfileexists(path);
+	send(connection_fd, &exist, sizeof(int), 0);
+	if (exist) {
+		printf("exist\n");
+		return;
+	}
+	
 	FILE *fp = fopen(path, "w");
 	if (fp < 0)
 	{
